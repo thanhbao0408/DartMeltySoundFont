@@ -80,17 +80,18 @@ class Oscillator {
     for (var t = 0; t < block.length; t++) {
       int index = _position.toInt();
 
-      try {
-        if (index >= _end) {
-          if (t > 0) {
-            // clear slice
-            block.fillRange(t, block.length - t, 0.0);
-            return true;
-          } else {
-            return false;
-          }
+      if (index >= _end) {
+        if (t > 0) {
+          // clear slice
+          block.fillRange(
+              t, // startIdx
+              block.length, // endIdx
+              0.0); // value
+          return true;
+        } else {
+          return false;
         }
-      } catch (e) {}
+      }
 
       int x1 = _data[index];
       int x2 = _data[index + 1];
