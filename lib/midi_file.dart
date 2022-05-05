@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'binary_reader.dart';
 import 'midi_file_loop_type.dart';
 
@@ -9,12 +11,17 @@ class MidiFile {
 
   MidiFile(this.trackCount, this.resolution, this.messages, this.times);
 
-  factory MidiFile.loadPath(String filePath) {
+  factory MidiFile.fromFile(String filePath) {
     BinaryReader reader = BinaryReader.fromFile(filePath);
-    return MidiFile.load(reader, 0, MidiFileLoopType.none);
+    return MidiFile.fromBinaryReader(reader, 0, MidiFileLoopType.none);
   }
 
-  factory MidiFile.load(
+  factory MidiFile.fromByteData(ByteData bytes) {
+    BinaryReader reader = BinaryReader.fromByteData(bytes);
+    return MidiFile.fromBinaryReader(reader, 0, MidiFileLoopType.none);
+  }
+
+  factory MidiFile.fromBinaryReader(
       BinaryReader reader, int loopPoint, MidiFileLoopType loopType) {
     var chunkType = reader.readFourCC();
     if (chunkType != "MThd") {
