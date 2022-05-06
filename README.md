@@ -104,13 +104,7 @@ synth.renderMonoInt16(buf16);
     - [x] Performace optimization
 
 
-## Todo
-
 - MIDI file support. 
-
-Feel free to port MIDI file support to Dart and make a pull request. 
-
-Its usage would look like this when implemented:
 
 ```
 // Create the synthesizer.
@@ -118,7 +112,7 @@ var sampleRate = 44100;
 var synthesizer = new Synthesizer("TimGM6mb.sf2", sampleRate);
 
 // Read the MIDI file.
-var midiFile = MidiFile("flourish.mid");
+var midiFile = MidiFile.fromFile("flourish.mid");
 var sequencer = MidiFileSequencer(synthesizer);
 sequencer.play(midiFile, false);
 
