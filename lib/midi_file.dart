@@ -72,10 +72,7 @@ class MidiFile {
 
   static Duration getTimeSpanFromSeconds(double value) {
     return Duration(
-        microseconds: (Duration.microsecondsPerMillisecond *
-                Duration.millisecondsPerSecond *
-                value)
-            .toInt());
+        milliseconds: (Duration.millisecondsPerSecond * value).toInt());
   }
 
   static int _checkedAdd(int a, int b) {
@@ -199,14 +196,8 @@ class MidiFile {
 
       var nextTick = tickLists[minIndex][indices[minIndex]];
       var deltaTick = nextTick - currentTick;
-      var deltaTime = Duration(
-          microseconds: (Duration.microsecondsPerMillisecond *
-                  Duration.millisecondsPerSecond *
-                  60.0 /
-                  (resolution * tempo) *
-                  deltaTick)
-              .toInt());
-
+      var deltaTime =
+          getTimeSpanFromSeconds(60.0 / (resolution * tempo) * deltaTick);
       currentTick += deltaTick;
       currentTime += deltaTime;
 

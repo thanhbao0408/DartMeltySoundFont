@@ -10,15 +10,19 @@ class MidiFileSequencer extends IAudioRenderer {
   late double _speed;
   MidiFile? _midiFile;
   late bool _loop;
-  late int _blockWrote;
+  late int _blockRead;
   late Duration _currentTime;
   late int _msgIndex;
   late int _loopIndex;
+  late List<double> _blockLeft;
+  late List<double> _blockRight;
 
   /// Initializes a new instance of the sequencer.
   MidiFileSequencer(Synthesizer synthesizer) {
     _synthesizer = synthesizer;
     _speed = 1.0;
+    _blockLeft = List<double>.filled(_synthesizer.blockSize, 0);
+    _blockRight = List<double>.filled(_synthesizer.blockSize, 0);
   }
 
   /// Plays the MIDI file.
@@ -27,7 +31,7 @@ class MidiFileSequencer extends IAudioRenderer {
   void play(MidiFile midiFile, bool loop) {
     _midiFile = midiFile;
     _loop = loop;
-    _blockWrote = _synthesizer.blockSize;
+    _blockRead = _synthesizer.blockSize;
     _currentTime = Duration.zero;
     _msgIndex = 0;
     _loopIndex = 0;
@@ -48,22 +52,25 @@ class MidiFileSequencer extends IAudioRenderer {
 
     var wrote = 0;
     while (wrote < left.length) {
-      if (_blockWrote == _synthesizer.blockSize) {
+      if (_blockRead == _synthesizer.blockSize) {
         _processEvents();
-        _blockWrote = 0;
+        _blockRead = 0;
         _currentTime += MidiFile.getTimeSpanFromSeconds(
             _speed * _synthesizer.blockSize / _synthesizer.sampleRate);
       }
 
-      var srcRem = _synthesizer.blockSize - _blockWrote;
-      var dstRem = left.length - wrote;
-      var rem = min(srcRem, dstRem);
+      var srcRemainder = _synthesizer.blockSize - _blockRead;
+      var dstRemainder = left.length - wrote;
+      var remainder = min(srcRemainder, dstRemainder);
 
-      _synthesizer.render(
-          left.sublist(wrote, wrote + rem), right.sublist(wrote, wrote + rem));
+      _synthesizer.render(_blockLeft, _blockRight);
+      for (int i = 0; i < remainder; i++) {
+        left[wrote + i] = _blockLeft[_blockRead + i];
+        right[wrote + i] = _blockRight[_blockRead + i];
+      }
 
-      _blockWrote += rem;
-      wrote += rem;
+      _blockRead += remainder;
+      wrote += remainder;
     }
   }
 
@@ -76,6 +83,7 @@ class MidiFileSequencer extends IAudioRenderer {
       var msg = _midiFile!.messages[_msgIndex];
       if (time <= _currentTime) {
         if (msg.type == MessageType.normal) {
+          print("$msg");
           _synthesizer.processMidiMessage(
               channel: msg.channel,
               command: msg.command,
