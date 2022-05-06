@@ -1,21 +1,21 @@
+import 'dart:async';
 import 'dart:core';
 import 'dart:math';
 
 import 'dart_melty_soundfont.dart';
-import 'iaudio_renderer.dart';
-import 'midi_file.dart';
 
 class MidiFileSequencer extends IAudioRenderer {
   late Synthesizer _synthesizer;
-  late double _speed;
-  MidiFile? _midiFile;
-  late bool _loop;
-  late int _blockRead;
-  late Duration _currentTime;
-  late int _msgIndex;
-  late int _loopIndex;
   late List<double> _blockLeft;
   late List<double> _blockRight;
+  late double _speed;
+  MidiFile? _midiFile;
+  bool _loop = false;
+  int _blockRead = 0;
+  Duration _currentTime = Duration.zero;
+  int _msgIndex = 0;
+  int _loopIndex = 0;
+  final StreamController<MidiMessage> _messageController = StreamController<MidiMessage>();
 
   /// Initializes a new instance of the sequencer.
   MidiFileSequencer(Synthesizer synthesizer) {
@@ -23,6 +23,10 @@ class MidiFileSequencer extends IAudioRenderer {
     _speed = 1.0;
     _blockLeft = List<double>.filled(_synthesizer.blockSize, 0);
     _blockRight = List<double>.filled(_synthesizer.blockSize, 0);
+  }
+
+  Stream<MidiMessage>? get onMidiMessage {
+    return _messageController.stream;
   }
 
   /// Plays the MIDI file.
@@ -55,8 +59,7 @@ class MidiFileSequencer extends IAudioRenderer {
       if (_blockRead == _synthesizer.blockSize) {
         _processEvents();
         _blockRead = 0;
-        _currentTime += MidiFile.getTimeSpanFromSeconds(
-            _speed * _synthesizer.blockSize / _synthesizer.sampleRate);
+        _currentTime += MidiFile.getTimeSpanFromSeconds(_speed * _synthesizer.blockSize / _synthesizer.sampleRate);
       }
 
       var srcRemainder = _synthesizer.blockSize - _blockRead;
@@ -82,17 +85,14 @@ class MidiFileSequencer extends IAudioRenderer {
       var time = _midiFile!.times[_msgIndex];
       var msg = _midiFile!.messages[_msgIndex];
       if (time <= _currentTime) {
-        if (msg.type == MessageType.normal) {
-          print("$msg");
-          _synthesizer.processMidiMessage(
-              channel: msg.channel,
-              command: msg.command,
-              data1: msg.data1,
-              data2: msg.data2);
+        if (msg.type == MidiMessageType.normal) {
+          //print("$msg");
+          _messageController.add(msg);
+          _synthesizer.processMidiMessage(channel: msg.channel, command: msg.command, data1: msg.data1, data2: msg.data2);
         } else if (_loop) {
-          if (msg.type == MessageType.loopStart) {
+          if (msg.type == MidiMessageType.loopStart) {
             _loopIndex = _msgIndex;
-          } else if (msg.type == MessageType.loopEnd) {
+          } else if (msg.type == MidiMessageType.loopEnd) {
             _currentTime = _midiFile!.times[_loopIndex];
             _msgIndex = _loopIndex;
             _synthesizer.noteOffAll(immediate: false);
