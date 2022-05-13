@@ -6,23 +6,26 @@ import 'dart_melty_soundfont.dart';
 
 class MidiFileSequencer extends IAudioRenderer {
   late Synthesizer _synthesizer;
-  late List<double> _blockLeft;
-  late List<double> _blockRight;
   late double _speed;
   MidiFile? _midiFile;
   bool _loop = false;
-  int _blockRead = 0;
+  int _blockWrote = 0;
   Duration _currentTime = Duration.zero;
   int _msgIndex = 0;
   int _loopIndex = 0;
-  final StreamController<MidiMessage> _messageController = StreamController<MidiMessage>();
+  late ByteData _blockLeft;
+  late ByteData _blockRight;
+
+  final StreamController<MidiMessage> _messageController =
+      StreamController<MidiMessage>();
 
   /// Initializes a new instance of the sequencer.
   MidiFileSequencer(Synthesizer synthesizer) {
     _synthesizer = synthesizer;
+    _blockLeft = ByteData(Float32List.bytesPerElement * _synthesizer.blockSize);
+    _blockRight =
+        ByteData(Float32List.bytesPerElement * _synthesizer.blockSize);
     _speed = 1.0;
-    _blockLeft = List<double>.filled(_synthesizer.blockSize, 0);
-    _blockRight = List<double>.filled(_synthesizer.blockSize, 0);
   }
 
   Stream<MidiMessage>? get onMidiMessage {
@@ -35,7 +38,7 @@ class MidiFileSequencer extends IAudioRenderer {
   void play(MidiFile midiFile, bool loop) {
     _midiFile = midiFile;
     _loop = loop;
-    _blockRead = _synthesizer.blockSize;
+    _blockWrote = _synthesizer.blockSize;
     _currentTime = Duration.zero;
     _msgIndex = 0;
     _loopIndex = 0;
@@ -56,23 +59,33 @@ class MidiFileSequencer extends IAudioRenderer {
 
     var wrote = 0;
     while (wrote < left.length) {
-      if (_blockRead == _synthesizer.blockSize) {
+      if (_blockWrote == _synthesizer.blockSize) {
         _processEvents();
-        _blockRead = 0;
-        _currentTime += MidiFile.getTimeSpanFromSeconds(_speed * _synthesizer.blockSize / _synthesizer.sampleRate);
+        _blockWrote = 0;
+        _currentTime += MidiFile.getTimeSpanFromSeconds(
+            _speed * _synthesizer.blockSize / _synthesizer.sampleRate);
       }
 
-      var srcRemainder = _synthesizer.blockSize - _blockRead;
+      var srcRemainder = _synthesizer.blockSize - _blockWrote;
       var dstRemainder = left.length - wrote;
       var remainder = min(srcRemainder, dstRemainder);
+      //C# code
+      //Slice: Forms a slice out of the current span starting at a specified index for a specified length.
+      //synthesizer.Render(left.Slice(wrote, rem), right.Slice(wrote, rem));
 
-      _synthesizer.render(_blockLeft, _blockRight);
+      // I did not test which one is faster but allocation for every iteration might possibly be slower so I chose the Float32List.view option
+      // var blockLeft = Float32List(remainder);
+      // var blockRight = Float32List(remainder);
+      var blockLeft = Float32List.view(_blockLeft.buffer, 0, remainder);
+      var blockRight = Float32List.view(_blockRight.buffer, 0, remainder);
+
+      _synthesizer.render(blockLeft, blockRight);
       for (int i = 0; i < remainder; i++) {
-        left[wrote + i] = _blockLeft[_blockRead + i];
-        right[wrote + i] = _blockRight[_blockRead + i];
+        left[wrote + i] = blockLeft[i];
+        right[wrote + i] = blockRight[i];
       }
 
-      _blockRead += remainder;
+      _blockWrote += remainder;
       wrote += remainder;
     }
   }
@@ -88,7 +101,11 @@ class MidiFileSequencer extends IAudioRenderer {
         if (msg.type == MidiMessageType.normal) {
           //print("$msg");
           _messageController.add(msg);
-          _synthesizer.processMidiMessage(channel: msg.channel, command: msg.command, data1: msg.data1, data2: msg.data2);
+          _synthesizer.processMidiMessage(
+              channel: msg.channel,
+              command: msg.command,
+              data1: msg.data1,
+              data2: msg.data2);
         } else if (_loop) {
           if (msg.type == MidiMessageType.loopStart) {
             _loopIndex = _msgIndex;
