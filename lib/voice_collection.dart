@@ -1,154 +1,121 @@
-﻿
-import 'synthesizer.dart';
+﻿import 'synthesizer.dart';
 import 'voice.dart';
 import 'instrument_region.dart';
 
-class VoiceCollection extends Iterable<Voice>
-{
-    final Synthesizer synthesizer;
+class VoiceCollection extends Iterable<Voice> {
+  final Synthesizer synthesizer;
 
-    final List<Voice> voices;
+  final List<Voice> voices;
 
-    int _activeVoiceCount = 0;
+  int _activeVoiceCount = 0;
 
-    VoiceCollection({required this.synthesizer, required this.voices});
+  VoiceCollection({required this.synthesizer, required this.voices});
 
-    factory VoiceCollection.create(Synthesizer synthesizer, int maxActiveVoiceCount)
-    {
-        List<Voice> voices = [];
+  factory VoiceCollection.create(
+      Synthesizer synthesizer, int maxActiveVoiceCount) {
+    List<Voice> voices = [];
 
-        for(int i = 0; i < maxActiveVoiceCount; i++) {
-
-          voices.add(Voice(synthesizer));
-
-        }
-
-        return VoiceCollection(synthesizer: synthesizer, voices: voices);
+    for (int i = 0; i < maxActiveVoiceCount; i++) {
+      voices.add(Voice(synthesizer));
     }
 
-    Voice? requestNew(InstrumentRegion region, int channel)
-    {
-        Voice? free;
-        Voice? low;
+    return VoiceCollection(synthesizer: synthesizer, voices: voices);
+  }
 
-        double lowestPriority = double.maxFinite;
-
-        int exclusiveClass = region.exclusiveClass();
-
-        if (exclusiveClass == 0)
-        {
-            for (var i = 0; i < _activeVoiceCount; i++)
-            {
-                var voice = voices[i];
-
-                if (voice.priority() < lowestPriority)
-                {
-                    lowestPriority = voice.priority();
-                    low = voice;
-                }
-            }
+  Voice? requestNew(InstrumentRegion region, int channel) {
+    // If the voice is an exclusive class, reuse the existing one so that only one note
+    // will be played at a time.
+    var exclusiveClass = region.exclusiveClass();
+    if (exclusiveClass != 0) {
+      for (var i = 0; i < _activeVoiceCount; i++) {
+        var voice = voices[i];
+        if (voice.exclusiveClass() == exclusiveClass &&
+            voice.channel() == channel) {
+          return voice;
         }
-        else
-        {
-            for (var i = 0; i < _activeVoiceCount; i++)
-            {
-                var voice = voices[i];
-
-                if (voice.exclusiveClass() == exclusiveClass && voice.channel() == channel)
-                {
-                    voice.kill();
-                    free = voice;
-                }
-                if (voice.priority() < lowestPriority)
-                {
-                    lowestPriority = voice.priority();
-                    low = voice;
-                }
-            }
-        }
-
-        if (free != null)
-        {
-            return free;
-        }
-
-        if (_activeVoiceCount < voices.length)
-        {
-            free = voices[_activeVoiceCount];
-            _activeVoiceCount++;
-            return free;
-        }
-        else
-        {
-            return low;
-        }
+      }
     }
 
-    void process()
-    {
-        var i = 0;
+    // If active voices are less than the limit, a new one can be used without problem.
+    if (_activeVoiceCount < voices.length) {
+      var free = voices[_activeVoiceCount];
+      _activeVoiceCount++;
+      return free;
+    }
 
-        while (true)
-        {
-            if (i == _activeVoiceCount)
-            {
-                return;
-            }
-
-            if (voices[i].process())
-            {
-                i++;
-            }
-            else
-            {
-                _activeVoiceCount--;
-
-                var tmp = voices[i];
-                voices[i] = voices[_activeVoiceCount];
-                voices[_activeVoiceCount] = tmp;
-            }
+    // Too many active voices...
+    // Find one which has the lowest priority.
+    Voice? low = null;
+    var lowestPriority = double.maxFinite;
+    for (var i = 0; i < _activeVoiceCount; i++) {
+      var voice = voices[i];
+      var priority = voice.priority();
+      if (priority < lowestPriority) {
+        lowestPriority = priority;
+        low = voice;
+      } else if (priority == lowestPriority) {
+        // Same priority...
+        // The older one should be more suitable for reuse.
+        if (voice.voiceLength() > low!.voiceLength()) {
+          low = voice;
         }
+      }
     }
+    return low;
+  }
 
-    void clear()
-    {
-        _activeVoiceCount = 0;
+  void process() {
+    var i = 0;
+
+    while (true) {
+      if (i == _activeVoiceCount) {
+        return;
+      }
+
+      if (voices[i].process()) {
+        i++;
+      } else {
+        _activeVoiceCount--;
+
+        var tmp = voices[i];
+        voices[i] = voices[_activeVoiceCount];
+        voices[_activeVoiceCount] = tmp;
+      }
     }
+  }
 
-    @override
-    VoiceIterator get iterator {
-      return VoiceIterator(collection: this);
-    }
+  void clear() {
+    _activeVoiceCount = 0;
+  }
 
-    int activeVoiceCount() => _activeVoiceCount;
+  @override
+  VoiceIterator get iterator {
+    return VoiceIterator(collection: this);
+  }
 
+  int activeVoiceCount() => _activeVoiceCount;
 }
 
+class VoiceIterator extends Iterator<Voice> {
+  final VoiceCollection collection;
 
-class VoiceIterator extends Iterator<Voice> 
-{
-    final VoiceCollection collection;
+  int _index = 0;
+  Voice? _current;
 
-    int _index = 0;
-    Voice? _current;
+  VoiceIterator({required this.collection});
 
-    VoiceIterator({required this.collection});
+  @override
+  bool moveNext() {
+    if (_index < collection.activeVoiceCount()) {
+      _current = collection.voices[_index];
+      _index++;
 
-    @override
-    bool moveNext() {
-        if (_index < collection.activeVoiceCount())
-        {
-            _current = collection.voices[_index];
-            _index++;
-            
-            return true;
-        } else {
-            return false;
-        }
+      return true;
+    } else {
+      return false;
     }
+  }
 
-    @override 
-    Voice get current => _current!;
+  @override
+  Voice get current => _current!;
 }
-
-
