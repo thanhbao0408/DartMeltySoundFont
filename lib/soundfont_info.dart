@@ -3,7 +3,6 @@ import 'soundfont_version.dart';
 
 /// The information of a SoundFont.
 class SoundFontInfo {
-
   final SoundFontVersion version;
   final String targetSoundEngine;
   final String bankName;
@@ -27,10 +26,10 @@ class SoundFontInfo {
     required this.targetProduct,
     required this.copyright,
     required this.comments,
-    required this.tools});
+    required this.tools,
+  });
 
   factory SoundFontInfo.fromReader(BinaryReader reader) {
-
     String chunkId = reader.readFourCC();
     if (chunkId != "LIST") {
       throw "The LIST chunk was not found.";
@@ -98,19 +97,18 @@ class SoundFontInfo {
       }
     }
 
-    return   SoundFontInfo(
-      version: version,
-      targetSoundEngine: targetSoundEngine,
-      bankName: bankName,
-      romName: romName,
-      romVersion: romVersion,
-      creationDate: creationDate,
-      author: author,
-      targetProduct: targetProduct,
-      copyright: copyright,
-      comments: comments,
-      tools: tools
-    );
+    return SoundFontInfo(
+        version: version,
+        targetSoundEngine: targetSoundEngine,
+        bankName: bankName,
+        romName: romName,
+        romVersion: romVersion,
+        creationDate: creationDate,
+        author: author,
+        targetProduct: targetProduct,
+        copyright: copyright,
+        comments: comments,
+        tools: tools);
   }
 
   /// Gets the name of the SoundFont.
