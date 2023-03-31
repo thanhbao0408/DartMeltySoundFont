@@ -205,7 +205,7 @@ class Synthesizer extends IAudioRenderer {
             break;
 
           case 0x01: // Modulation Coarse
-            channelInfo.setModulationCoarse(data2);
+            channelInfo.setModulationFine(data2);
             break;
 
           case 0x21: // Modulation Fine
